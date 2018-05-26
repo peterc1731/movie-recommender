@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset = "UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="./styles.css">
+    <title>Gimme a Movie</title>
+</head>
+<body>
+  <div id="app">
+    
+    <div v-show="page1">
+      <div class="q-container">
+        I'm looking for
+        <span v-show="isAn"> an </span>
+        <span v-else> a </span>
+        <drop :data.sync="count" :value="1"></drop>
+        <span v-show="count == 2"> and</span>
+        <span v-show="count == 3">, </span>
+        <drop :data.sync="count" :value="2" v-if="count >= 2"></drop>
+        <span v-show="count == 3"> and</span>
+        <drop :data.sync="count" :value="3" v-if="count == 3"></drop>
+        <span v-if="count < 3" @click="count++, isHovered = false" @mouseover="isHovered = true" @mouseleave="isHovered = false" v-bind:class="{ 'label-default': !isHovered, 'label-success': isHovered }" class="label labelHover"><span class="glyphicon glyphicon-plus"></span></span>
+        movie.
+      </div>
+      <div class="nav">
+        <button class="btn btn-danger btn-lg" @click="back" v-if="count > 1"><span class="glyphicon glyphicon-chevron-left"></span> back</button>
+        <button class="btn btn-success btn-lg btn-next" @click="advance(1, 'popularity.desc')">next <span class="glyphicon glyphicon-chevron-right"></span></button>
+      </div>
+    </div>
+    
+    
+    <div v-if="page2">
+      <div class="results" v-for="result in results">
+        <h2>{{ result.title }}</h2>
+        <div class="row">
+          <div class="col-md-3">
+            <img class="poster" :src="'https://image.tmdb.org/t/p/w300_and_h450_bestv2' + result.poster_path">
+          </div>
+          <div class="col-md-9">
+            <p class="date">{{ result.release_date | newdate }}</p>
+            <p class="overview">{{ result.overview }}</p>
+            <span v-for="item in [1,2,3,4,5]">
+              <span class="glyphicon glyphicon-star" v-if="item <= Math.round(result.vote_average/2)"></span>
+              <span class="glyphicon glyphicon-star-empty" v-else></span>
+            </span>
+            <span style="margin-left: 10px; color: gray;">{{ result.vote_average }}/10</span>
+            <p style="margin-top: 10px;"><a style="color: #FF893A;" target="_blank" href="https://www.youtube.com/results?search_query={{ result.title }}+trailer">Watch Trailer</a></p>
+          </div>
+        </div>
+          <div class="separator"><hr></div>
+      </div>
+      <div class="wrapper" v-if="(total-(pageNo-1)*20) > 0 && !loading">
+        <a @click="showmore(pageNo)">
+          <div class="show-more">
+            <strong>Show More ({{ total - 20*(pageNo-1) }})</strong>
+          </div>
+        </a>
+      </div>
+      <div class="wrapper" v-else>
+        <strong v-if="!loading">Thats your lot.</strong>
+      </div>
+      <div class="nav">
+        <button class="btn btn-danger btn-lg" @click="toPage1"><span class="glyphicon glyphicon-chevron-left"></span> back</button>
+      </div>
+      <div class="btn-group sort-button">
+        <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          Sort <span class="caret"></span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-right">
+          <li><a href="#" v-if="sort == 'popularity.desc'" style="color: #FF893A;">Popularity</a></li>
+          <li><a href="#" v-if="sort == 'vote_average.desc'" style="color: #FF893A;">Rating</a></li>
+          <li><a href="#" v-if="sort == 'release_date.desc'" style="color: #FF893A;">Date</a></li>
+          <li role="separator" class="divider"></li>
+          <li><a href="#" v-if="sort !== 'popularity.desc'" @click="sort = 'popularity.desc'">Popularity</a></li>
+          <li><a href="#" v-if="sort !== 'vote_average.desc'" @click="sort = 'vote_average.desc'">Rating</a></li>
+          <li><a href="#" v-if="sort !== 'release_date.desc'" @click="sort = 'release_date.desc'">Date</a></li>
+        </ul>
+      </div>
+    </div>
+    
+    
+  </div>
+
+
+  <script src="https://code.jquery.com/jquery-3.1.0.min.js"   integrity="sha256-cCueBR6CsyA4/9szpPfrX3s49M9vUU5BgtiJj06wt/s="   crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/1.0.26/vue.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+  <script src="https://www.datejs.com/build/date.js" type="text/javascript"></script>
+  
+  
+  
+  <!--templates-->
+  
+  <template id="drop">
+    <div class="drop-component">
+      <div class="q-input">
+        <button class="default-option" @click="opened = !opened">
+          <span class="option">{{ activeGenre.name }}</span>
+        </button>
+      </div>
+      <div class="options" v-show="opened">
+        <div class="option" v-for="genre in genres" v-show="genre !== activeGenre" @click.stop="dropdown(genre, value)">{{ genre.name }}</div>
+      </div>
+    </div>
+  </template>
+  
+  
+  <script>
+  
+    Vue.component('drop', {
+            props: ['data', 'value'],
+            
+            data: function() {
+              return {
+                activeGenre: false,
+                opened: false,
+                genres: this.$parent.genres,
+                pickedGenres: this.$parent.pickedGenres,
+              };
+            },
+            
+            template: '#drop',
+            
+            methods: {
+              dropdown: function (genre, value) {
+                this.activeGenre = genre;
+                this.opened = false;
+                this.pickedGenres[value-1] = this.activeGenre;
+                if (this.pickedGenres[0].name.charAt(0) == "A") {
+                  result = true;
+                } else {
+                  result = false;
+                }
+                this.$parent.isAn = result;
+              },
+              open: function () {
+                $(".options").hide();
+                this.opened;
+              },
+            },
+            ready() {
+                this.activeGenre = this.genres[0];
+                this.pickedGenres.push(this.activeGenre);
+            }
+        });
+    
+    var vm = new Vue({
+      el: '#app',
+      
+      watch: {
+        sort: function(value) {
+          this.advance(1, value);
+        }
+      },
+      
+      data: {
+        
+        page1: true,
+        
+        page2: false,
+        
+        loading: false,
+        
+        pageNo: 2,
+          
+        isHovered: false,
+        
+        total: 0,
+        
+        count: 1,
+        
+        isAn: true,
+        
+        sort: "popularity.desc",
+        
+        results: false,
+        
+        pickedGenres: [],
+        
+        genres: [
+          {
+            "id": 28,
+            "name": "Action"
+          },
+          {
+            "id": 12,
+            "name": "Adventure"
+          },
+          {
+            "id": 16,
+            "name": "Animation"
+          },
+          {
+            "id": 35,
+            "name": "Comedy"
+          },
+          {
+            "id": 80,
+            "name": "Crime"
+          },
+          {
+            "id": 99,
+            "name": "Documentary"
+          },
+          {
+            "id": 18,
+            "name": "Drama"
+          },
+          {
+            "id": 10751,
+            "name": "Family"
+          },
+          {
+            "id": 14,
+            "name": "Fantasy"
+          },
+          {
+            "id": 36,
+            "name": "History"
+          },
+          {
+            "id": 27,
+            "name": "Horror"
+          },
+          {
+            "id": 10402,
+            "name": "Music"
+          },
+          {
+            "id": 9648,
+            "name": "Mystery"
+          },
+          {
+            "id": 10749,
+            "name": "Romance"
+          },
+          {
+            "id": 878,
+            "name": "Sci Fi"
+          },
+          {
+            "id": 53,
+            "name": "Thriller"
+          },
+          {
+            "id": 10752,
+            "name": "War"
+          },
+          {
+            "id": 37,
+            "name": "Western"
+          }
+        ],
+        
+      },
+      
+      methods: {
+        toPage2: function() {
+          this.page1 = false;
+          this.page2 = true;
+        },
+        
+        toPage1: function() {
+          this.page2 = false;
+          this.page1 = true;
+        },
+        
+        back: function () {
+          if (this.count > 1) {
+            this.count--
+          }
+          this.pickedGenres.splice(this.count, 1)
+        },
+        
+        advance: function(page, sort) {
+          
+          this.page1 = false;
+          this.page2 = true;
+          var genre = [];
+          var genreString = '';
+          
+          genreString = this.pickedGenres[0].id;
+          
+          for (var i=1; i<this.pickedGenres.length; i++) {
+            genre[i] = this.pickedGenres[i].id;
+            genreString = genreString + '%2C' + genre[i]
+          }
+          
+          var vm = this;
+          
+          var settings = {
+            "async": true,
+            "crossDomain": true,
+            "url": "https://api.themoviedb.org/3/discover/movie?with_genres="+ genreString +"&page=" + page + "&sort_by=" + sort + "&release_date.lte=2017&vote_count.gte=100&language=en-US&api_key=19331112d933bef68c5baaf24dba161d",
+            "method": "GET",
+            "headers": {},
+            "processData": false,
+            "data": "{}"
+          }
+          
+          vm.loading = true;
+          
+          $.ajax(settings).done(function (response) {
+            vm.results = response.results;
+            vm.total = response.total_results;
+            vm.loading = false;
+          });
+          
+        },
+        
+        showmore: function(page) {
+          
+          var genre = [];
+          var genreString = '';
+          
+          genreString = this.pickedGenres[0].id;
+          
+          for (var i=1; i<this.pickedGenres.length; i++) {
+            genre[i] = this.pickedGenres[i].id;
+            genreString = genreString + '%2C' + genre[i]
+          }
+          
+          var vm = this;
+          
+          var settings = {
+            "async": true,
+            "crossDomain": true,
+            "url": "https://api.themoviedb.org/3/discover/movie?with_genres="+ genreString +"&page=" + page + "&sort_by=" + vm.sort + "&release_date.lte=2017&vote_count.gte=100&language=en-US&api_key=19331112d933bef68c5baaf24dba161d",
+            "method": "GET",
+            "headers": {},
+            "processData": false,
+            "data": "{}"
+          }
+          
+          $.ajax(settings).done(function (response) {
+            for (var i=0; i<=(response.results.length-1); i++){
+              vm.results.push(response.results[i]);
+            }
+          });
+          
+          vm.pageNo++;
+        },
+      },
+            
+    });
+    
+    Vue.filter('newdate', function (value) {
+        var thing = new Date(value);
+        return thing.toString("MMMM yyyy");
+    });
+  </script>
+
+
+
+  
+</body>
+</html>
